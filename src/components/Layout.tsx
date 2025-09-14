@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { Menu, X, BarChart3, Settings, Upload, Shield } from "lucide-react";
+import { Menu, X, BarChart3, Settings, Upload, Shield, AlertTriangle, Clock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const navigationItems = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Sensors", href: "/sensors", icon: Shield },
+  { name: "Manual Alert", href: "/manual-alert", icon: AlertTriangle },
+  { name: "Event History", href: "/event-history", icon: Clock },
   { name: "Data Upload", href: "/upload", icon: Upload },
   { name: "Settings", href: "/settings", icon: Settings },
 ];

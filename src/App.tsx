@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Sensors from "./pages/Sensors";
+import ManualAlert from "./pages/ManualAlert";
+import EventHistory from "./pages/EventHistory";
 import Upload from "./pages/Upload";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -22,6 +24,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/sensors" element={<Sensors />} />
+            <Route path="/manual-alert" element={<ManualAlert />} />
+            <Route path="/event-history" element={<EventHistory />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
