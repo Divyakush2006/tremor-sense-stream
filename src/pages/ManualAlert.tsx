@@ -9,6 +9,7 @@ export default function ManualAlert() {
   const buzzerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activeAudioContexts = useRef<AudioContext[]>([]);
+  const buzzerAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Create alert sound (warning tone)
   const createAlertSound = () => {
@@ -32,23 +33,12 @@ export default function ManualAlert() {
     return audioContext;
   };
 
-  // Create evacuation buzzer sound (loud, urgent)
-  const createBuzzerSound = () => {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.type = 'square';
-    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
-    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
-    
-    return audioContext;
+  // Create evacuation buzzer sound using uploaded audio
+  const playBuzzerAudio = () => {
+    if (buzzerAudioRef.current) {
+      buzzerAudioRef.current.currentTime = 0;
+      buzzerAudioRef.current.play().catch(e => console.error('Audio play failed:', e));
+    }
   };
 
   const activateAlert = () => {
@@ -74,13 +64,13 @@ export default function ManualAlert() {
     setAlertActive(true);
     setBuzzerActive(true);
     
-    // Play loud buzzer sound repeatedly
-    const playBuzzerLoop = () => {
-      const audioContext = createBuzzerSound();
-      activeAudioContexts.current.push(audioContext);
-      buzzerTimeoutRef.current = setTimeout(playBuzzerLoop, 1000);
-    };
-    playBuzzerLoop();
+    // Initialize and play buzzer audio
+    if (!buzzerAudioRef.current) {
+      buzzerAudioRef.current = new Audio('/alarm-buzzer.mp3');
+      buzzerAudioRef.current.loop = true;
+      buzzerAudioRef.current.volume = 0.8;
+    }
+    playBuzzerAudio();
   };
 
   const resetAlerts = () => {
@@ -109,6 +99,12 @@ export default function ManualAlert() {
       }
     });
     activeAudioContexts.current = [];
+    
+    // Stop buzzer audio
+    if (buzzerAudioRef.current) {
+      buzzerAudioRef.current.pause();
+      buzzerAudioRef.current.currentTime = 0;
+    }
   };
 
   return (
