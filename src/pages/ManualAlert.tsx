@@ -5,8 +5,10 @@ export default function ManualAlert() {
   const [alertActive, setAlertActive] = useState(false);
   const [evacuationActive, setEvacuationActive] = useState(false);
   const [buzzerActive, setBuzzerActive] = useState(false);
-  const alertAudioRef = useRef<HTMLAudioElement | null>(null);
-  const buzzerAudioRef = useRef<HTMLAudioElement | null>(null);
+  const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const buzzerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const activeAudioContexts = useRef<AudioContext[]>([]);
 
   // Create alert sound (warning tone)
   const createAlertSound = () => {
@@ -55,13 +57,14 @@ export default function ManualAlert() {
     
     // Play alert sound repeatedly
     const playAlertLoop = () => {
-      createAlertSound();
-      setTimeout(playAlertLoop, 2000);
+      const audioContext = createAlertSound();
+      activeAudioContexts.current.push(audioContext);
+      alertTimeoutRef.current = setTimeout(playAlertLoop, 2000);
     };
     playAlertLoop();
     
     // Auto-reset after 30 seconds
-    setTimeout(() => {
+    autoResetTimeoutRef.current = setTimeout(() => {
       setBuzzerActive(false);
     }, 30000);
   };
@@ -73,8 +76,9 @@ export default function ManualAlert() {
     
     // Play loud buzzer sound repeatedly
     const playBuzzerLoop = () => {
-      createBuzzerSound();
-      setTimeout(playBuzzerLoop, 1000);
+      const audioContext = createBuzzerSound();
+      activeAudioContexts.current.push(audioContext);
+      buzzerTimeoutRef.current = setTimeout(playBuzzerLoop, 1000);
     };
     playBuzzerLoop();
   };
@@ -83,6 +87,28 @@ export default function ManualAlert() {
     setAlertActive(false);
     setEvacuationActive(false);
     setBuzzerActive(false);
+    
+    // Clear all timeouts
+    if (alertTimeoutRef.current) {
+      clearTimeout(alertTimeoutRef.current);
+      alertTimeoutRef.current = null;
+    }
+    if (buzzerTimeoutRef.current) {
+      clearTimeout(buzzerTimeoutRef.current);
+      buzzerTimeoutRef.current = null;
+    }
+    if (autoResetTimeoutRef.current) {
+      clearTimeout(autoResetTimeoutRef.current);
+      autoResetTimeoutRef.current = null;
+    }
+    
+    // Close all audio contexts to stop sounds
+    activeAudioContexts.current.forEach(context => {
+      if (context.state !== 'closed') {
+        context.close();
+      }
+    });
+    activeAudioContexts.current = [];
   };
 
   return (
