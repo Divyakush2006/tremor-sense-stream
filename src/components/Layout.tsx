@@ -43,12 +43,12 @@ export default function Layout({ children }: LayoutProps) {
               </button>
               
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center overflow-hidden">
-                  <img src="/placeholder.svg" alt="SafeMine Logo" className="h-5 w-5 object-contain" />
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                  <img src="/aroham-logo.png" alt="Aroham Logo" className="h-8 w-8 object-contain" />
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-foreground">
-                    SafeMine Dashboard
+                    Aroham
                   </h1>
                   <p className="text-xs text-muted-foreground hidden sm:block">
                     Real-time Mining Safety Monitoring
