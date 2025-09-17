@@ -1,8 +1,14 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, FileText, Clock, MapPin, Activity, Gauge } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, FileText, Clock, MapPin, Activity, Gauge, Settings } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import SensorCard from "@/components/SensorCard";
+import DatabaseConfig from "@/components/DatabaseConfig";
+import { databaseService, type SensorReading } from "@/services/DatabaseService";
+import { mlModelService, type MLPrediction } from "@/services/MLModelService";
+import { autoEvacuationService } from "@/services/AutoEvacuationService";
+import { useToast } from "@/hooks/use-toast";
 
 interface SensorType {
   id: string;
@@ -22,147 +28,150 @@ interface SensorType {
     message: string;
   }>;
 }
-const sensorDetails: SensorType[] = [
-  {
-    id: "DISP-001",
-    name: "Displacement Sensor",
-    location: "Section A - North Wall",
-    value: 2.45,
-    unit: "mm",
-    status: "safe",
-    trend: "stable",
-    threshold: { safe: 5, moderate: 8, high: 12 },
-    lastUpdated: "2024-01-15 14:23",
-    description: "Monitors structural displacement in the mining wall to detect potential rock movement.",
+
+// Sensor mapping configuration
+const sensorMappings = {
+  'RAIN-001': { field: 'Rainfall_mm' as keyof SensorReading, name: 'Current Rainfall', unit: 'mm', thresholds: { safe: 5, moderate: 15, high: 25 } },
+  'RAIN-002': { field: 'Rainfall_3Day' as keyof SensorReading, name: '3-Day Rainfall', unit: 'mm', thresholds: { safe: 20, moderate: 50, high: 100 } },
+  'RAIN-003': { field: 'Rainfall_7Day' as keyof SensorReading, name: '7-Day Rainfall', unit: 'mm', thresholds: { safe: 50, moderate: 100, high: 200 } },
+  'TEMP-001': { field: 'Temperature_C' as keyof SensorReading, name: 'Temperature', unit: '°C', thresholds: { safe: 40, moderate: 50, high: 60 } },
+  'STRN-001': { field: 'Soil_Strain' as keyof SensorReading, name: 'Soil Strain', unit: 'μɛ', thresholds: { safe: 100, moderate: 200, high: 300 } },
+  'PORE-001': { field: 'Pore_Water_Pressure_kPa' as keyof SensorReading, name: 'Pore Water Pressure', unit: 'kPa', thresholds: { safe: 100, moderate: 150, high: 200 } },
+};
+// Initialize sensors from mapping
+const initializeSensors = (): SensorType[] => {
+  return Object.entries(sensorMappings).map(([id, config]) => ({
+    id,
+    name: config.name,
+    location: "Mine Site - Monitoring Station",
+    value: 0,
+    unit: config.unit,
+    status: "safe" as const,
+    trend: "stable" as const,
+    threshold: config.thresholds,
+    lastUpdated: new Date().toLocaleString(),
+    description: `Real-time monitoring of ${config.name.toLowerCase()} from cloud database sensors.`,
     logs: [
-      { id: "1", timestamp: "2024-01-15 14:23", level: "info", message: "Sensor calibrated successfully" },
-      { id: "2", timestamp: "2024-01-15 12:15", level: "warning", message: "Minor displacement detected, monitoring closely" },
-      { id: "3", timestamp: "2024-01-15 09:30", level: "info", message: "Daily threshold check completed" }
+      { id: `${id}-1`, timestamp: new Date().toLocaleString(), level: "info", message: "Sensor initialized - waiting for data" }
     ]
-  },
-  {
-    id: "STRN-002", 
-    name: "Strain Gauge",
-    location: "Section B - Support Beam",
-    value: 156.7,
-    unit: "μɛ",
-    status: "moderate",
-    trend: "up",
-    threshold: { safe: 100, moderate: 200, high: 300 },
-    lastUpdated: "2024-01-15 15:45",
-    description: "Measures structural strain to assess material stress and deformation.",
-    logs: [
-      { id: "4", timestamp: "2024-01-15 15:45", level: "warning", message: "Strain approaching moderate threshold" },
-      { id: "5", timestamp: "2024-01-15 13:20", level: "error", message: "Temporary signal interruption detected" },
-      { id: "6", timestamp: "2024-01-15 11:10", level: "info", message: "Strain measurements within normal range" }
-    ]
-  },
-  {
-    id: "PORE-003",
-    name: "Pore Pressure",
-    location: "Section C - Ground Level",
-    value: 87.3,
-    unit: "kPa",
-    status: "safe",
-    trend: "down",
-    threshold: { safe: 100, moderate: 150, high: 200 },
-    lastUpdated: "2024-01-15 14:30",
-    description: "Monitors groundwater pressure to predict potential slope instability.",
-    logs: [
-      { id: "7", timestamp: "2024-01-15 14:30", level: "info", message: "Pressure levels decreasing as expected" },
-      { id: "8", timestamp: "2024-01-15 10:45", level: "info", message: "Drainage system functioning optimally" },
-      { id: "9", timestamp: "2024-01-15 08:15", level: "info", message: "Morning pressure reading completed" }
-    ]
-  },
-  {
-    id: "RAIN-004",
-    name: "Rainfall Monitor",
-    location: "Weather Station - Surface",
-    value: 0.0,
-    unit: "mm/h",
-    status: "safe",
-    trend: "stable",
-    threshold: { safe: 5, moderate: 15, high: 25 },
-    lastUpdated: "2024-01-15 16:00",
-    description: "Tracks precipitation levels that can affect slope stability and drainage.",
-    logs: [
-      { id: "10", timestamp: "2024-01-15 16:00", level: "info", message: "Clear weather conditions maintained" },
-      { id: "11", timestamp: "2024-01-15 06:00", level: "info", message: "Daily weather monitoring initiated" },
-      { id: "12", timestamp: "2024-01-14 22:30", level: "warning", message: "Light precipitation detected overnight" }
-    ]
-  },
-  {
-    id: "TEMP-005",
-    name: "Temperature Sensor",
-    location: "Section A - Equipment Bay",
-    value: 23.8,
-    unit: "°C",
-    status: "safe",
-    trend: "stable",
-    threshold: { safe: 40, moderate: 50, high: 60 },
-    lastUpdated: "2024-01-15 15:30",
-    description: "Monitors ambient temperature for equipment operation and safety.",
-    logs: [
-      { id: "13", timestamp: "2024-01-15 15:30", level: "info", message: "Temperature within optimal operating range" },
-      { id: "14", timestamp: "2024-01-15 12:00", level: "info", message: "Equipment cooling system functioning" },
-      { id: "15", timestamp: "2024-01-15 09:00", level: "info", message: "Temperature monitoring stable" }
-    ]
-  },
-  {
-    id: "VIB-006",
-    name: "Vibration Monitor",
-    location: "Section D - Blast Zone",
-    value: 12.4,
-    unit: "mm/s",
-    status: "high",
-    trend: "up",
-    threshold: { safe: 5, moderate: 10, high: 15 },
-    lastUpdated: "2024-01-15 16:15",
-    description: "Detects ground vibrations from blasting operations and equipment.",
-    logs: [
-      { id: "16", timestamp: "2024-01-15 16:15", level: "error", message: "High vibration levels detected - investigate immediately" },
-      { id: "17", timestamp: "2024-01-15 14:45", level: "warning", message: "Vibration exceeding moderate threshold" },
-      { id: "18", timestamp: "2024-01-15 13:30", level: "warning", message: "Blasting operation caused temporary spike" }
-    ]
-  }
-];
+  }));
+};
 
 export default function Sensors() {
-  const [sensors, setSensors] = useState(sensorDetails);
+  const [sensors, setSensors] = useState<SensorType[]>(initializeSensors());
+  const [showConfig, setShowConfig] = useState(false);
+  const [mlPrediction, setMlPrediction] = useState<MLPrediction | null>(null);
+  const [isDataConnected, setIsDataConnected] = useState(false);
+  const { toast } = useToast();
 
-  // Data randomizer effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSensors(prevSensors => 
-        prevSensors.map(sensor => {
-          // Generate small random variations in sensor values
-          const variation = (Math.random() - 0.5) * 0.1; // ±5% variation
-          const newValue = Math.max(0, sensor.value + variation);
+  // Update sensors from database data
+  const updateSensorsFromData = (sensorData: SensorReading[]) => {
+    if (sensorData.length === 0) return;
+
+    const latestReading = sensorData[sensorData.length - 1];
+    
+    setSensors(prevSensors => 
+      prevSensors.map(sensor => {
+        const mapping = sensorMappings[sensor.id as keyof typeof sensorMappings];
+        if (!mapping) return sensor;
+
+        const newValue = Number(latestReading[mapping.field]) || 0;
+        
+        // Determine status based on thresholds
+        let newStatus: "safe" | "moderate" | "high" = "safe";
+        if (newValue >= sensor.threshold.high) {
+          newStatus = "high";
+        } else if (newValue >= sensor.threshold.moderate) {
+          newStatus = "moderate";
+        }
+        
+        // Determine trend (simplified - compare with previous value)
+        let newTrend: "up" | "down" | "stable" = "stable";
+        const diff = newValue - sensor.value;
+        if (diff > 0.1) newTrend = "up";
+        else if (diff < -0.1) newTrend = "down";
+        
+        // Create new log entry if status changed or significant value change
+        const newLogs = [...sensor.logs];
+        if (sensor.status !== newStatus || Math.abs(diff) > 0.5) {
+          newLogs.unshift({
+            id: `${sensor.id}-${Date.now()}`,
+            timestamp: new Date().toLocaleString(),
+            level: newStatus === "high" ? "error" : newStatus === "moderate" ? "warning" : "info",
+            message: `Reading updated: ${newValue} ${sensor.unit} (Status: ${newStatus})`
+          });
           
-          // Determine new status based on thresholds
-          let newStatus: "safe" | "moderate" | "high" = "safe";
-          if (newValue >= sensor.threshold.high) {
-            newStatus = "high";
-          } else if (newValue >= sensor.threshold.moderate) {
-            newStatus = "moderate";
+          // Keep only last 10 logs
+          if (newLogs.length > 10) {
+            newLogs.splice(10);
           }
-          
-          // Determine trend
-          let newTrend: "up" | "down" | "stable" = "stable";
-          if (variation > 0.02) newTrend = "up";
-          else if (variation < -0.02) newTrend = "down";
-          
-          return {
-            ...sensor,
-            value: parseFloat(newValue.toFixed(2)),
-            status: newStatus,
-            trend: newTrend,
-            lastUpdated: new Date().toLocaleString()
-          };
-        })
-      );
-    }, 3000); // Update every 3 seconds
+        }
+        
+        return {
+          ...sensor,
+          value: parseFloat(newValue.toFixed(2)),
+          status: newStatus,
+          trend: newTrend,
+          lastUpdated: new Date().toLocaleString(),
+          logs: newLogs
+        };
+      })
+    );
+    
+    setIsDataConnected(true);
+  };
 
+  // Setup database and ML services
+  useEffect(() => {
+    if (databaseService.isConfigured()) {
+      // Subscribe to real-time data
+      databaseService.subscribe(updateSensorsFromData);
+      
+      // Start real-time monitoring
+      databaseService.startRealTimeMonitoring(5000); // Every 5 seconds
+    }
+
+    if (mlModelService.isConfigured()) {
+      // Subscribe to ML predictions
+      mlModelService.onPrediction((prediction) => {
+        setMlPrediction(prediction);
+        
+        // Process through auto evacuation service
+        autoEvacuationService.processPrediction(prediction);
+      });
+    }
+
+    // Subscribe to auto evacuation triggers
+    autoEvacuationService.onEvacuation(() => {
+      toast({
+        title: "🚨 AUTO EVACUATION TRIGGERED",
+        description: "High risk conditions detected by ML model",
+        variant: "destructive",
+      });
+    });
+
+    return () => {
+      // Cleanup subscriptions
+      databaseService.unsubscribe(updateSensorsFromData);
+    };
+  }, [toast]);
+
+  // Process sensor data through ML model
+  useEffect(() => {
+    if (!databaseService.isConfigured() || !mlModelService.isConfigured()) return;
+
+    const processML = async () => {
+      try {
+        const sensorData = await databaseService.fetchSensorData();
+        if (sensorData.length > 0) {
+          await mlModelService.processSensorData(sensorData);
+        }
+      } catch (error) {
+        console.error('ML processing error:', error);
+      }
+    };
+
+    const interval = setInterval(processML, 10000); // Process every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -170,14 +179,89 @@ export default function Sensors() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-6 py-8 max-w-6xl">
         {/* Header Section */}
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-3">
-            Sensor Monitoring Dashboard
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Real-time monitoring with expandable sensor cards for detailed analysis
-          </p>
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-3">
+                Live Sensor Monitoring
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Real-time data from cloud database with ML-powered risk assessment
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfig(!showConfig)}
+              className="flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Configure Services
+            </Button>
+          </div>
+
+          {/* Status Indicators */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card>
+              <CardContent className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-2">
+                  <Badge variant={isDataConnected ? "secondary" : "destructive"}>
+                    {isDataConnected ? "Connected" : "Disconnected"}
+                  </Badge>
+                  <span className="text-sm">Database</span>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-2">
+                  <Badge variant={mlModelService.isConfigured() ? "secondary" : "destructive"}>
+                    {mlModelService.isConfigured() ? "Active" : "Inactive"}
+                  </Badge>
+                  <span className="text-sm">ML Model</span>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-2">
+                  <Badge variant={autoEvacuationService.isAutoEvacuationEnabled() ? "secondary" : "destructive"}>
+                    {autoEvacuationService.isAutoEvacuationEnabled() ? "Enabled" : "Disabled"}
+                  </Badge>
+                  <span className="text-sm">Auto Evacuation</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ML Prediction Display */}
+          {mlPrediction && (
+            <Card className={`mb-6 ${mlPrediction.risk_level ? 'border-destructive' : 'border-success'}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">ML Risk Assessment</h3>
+                    <p className={`text-sm ${mlPrediction.risk_level ? 'text-destructive' : 'text-success'}`}>
+                      {mlModelService.getRiskAssessment(mlPrediction)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Contributing Factors:</p>
+                    <p className="text-sm">{mlPrediction.contributing_factors.join(', ')}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
+
+        {/* Configuration Panel */}
+        {showConfig && (
+          <div className="mb-8">
+            <DatabaseConfig />
+          </div>
+        )}
 
         {/* Sensors Vertical Stack */}
         <div className="space-y-6">

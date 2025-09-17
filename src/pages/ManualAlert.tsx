@@ -1,5 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AlertTriangle, Volume2, Users, Clock } from "lucide-react";
+import { autoEvacuationService } from "@/services/AutoEvacuationService";
 
 export default function ManualAlert() {
   const [alertActive, setAlertActive] = useState(false);
@@ -105,7 +106,23 @@ export default function ManualAlert() {
       buzzerAudioRef.current.pause();
       buzzerAudioRef.current.currentTime = 0;
     }
+
+    // Resolve any active auto evacuation
+    autoEvacuationService.resolveEvacuation();
   };
+
+  // Auto evacuation integration
+  useEffect(() => {
+    const handleAutoEvacuation = () => {
+      activateEvacuation();
+    };
+
+    autoEvacuationService.onEvacuation(handleAutoEvacuation);
+    
+    return () => {
+      // Cleanup handled by service
+    };
+  }, []);
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
