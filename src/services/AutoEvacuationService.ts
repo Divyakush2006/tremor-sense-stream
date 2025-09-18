@@ -15,12 +15,41 @@ interface EvacuationEvent {
 type EvacuationCallback = () => void;
 type EvacuationEventCallback = (event: EvacuationEvent) => void;
 
+// Shared buzzer functionality (same as ManualAlert)
+class BuzzerController {
+  private buzzerAudio: HTMLAudioElement | null = null;
+
+  initializeBuzzer() {
+    if (!this.buzzerAudio) {
+      this.buzzerAudio = new Audio('/alarm-buzzer.mp3');
+      this.buzzerAudio.loop = true;
+      this.buzzerAudio.volume = 0.8;
+    }
+  }
+
+  playBuzzer() {
+    this.initializeBuzzer();
+    if (this.buzzerAudio) {
+      this.buzzerAudio.currentTime = 0;
+      this.buzzerAudio.play().catch(e => console.error('Auto evacuation buzzer play failed:', e));
+    }
+  }
+
+  stopBuzzer() {
+    if (this.buzzerAudio) {
+      this.buzzerAudio.pause();
+      this.buzzerAudio.currentTime = 0;
+    }
+  }
+}
+
 class AutoEvacuationService {
   private isEnabled = true;
   private evacuationCallbacks: EvacuationCallback[] = [];
   private eventCallbacks: EvacuationEventCallback[] = [];
   private evacuationHistory: EvacuationEvent[] = [];
   private currentEvacuation: EvacuationEvent | null = null;
+  private buzzerController = new BuzzerController();
 
   // Enable/disable auto evacuation
   setEnabled(enabled: boolean) {
@@ -86,6 +115,9 @@ class AutoEvacuationService {
       factors: prediction.contributing_factors,
     });
 
+    // Activate evacuation buzzer (same as manual evacuation)
+    this.buzzerController.playBuzzer();
+
     // Notify evacuation callbacks
     this.evacuationCallbacks.forEach(callback => callback());
     this.eventCallbacks.forEach(callback => callback(evacuationEvent));
@@ -109,6 +141,10 @@ class AutoEvacuationService {
       this.currentEvacuation.resolvedAt = new Date().toISOString();
       
       console.log('Evacuation resolved - conditions safe');
+      
+      // Stop the buzzer when evacuation is resolved
+      this.buzzerController.stopBuzzer();
+      
       this.eventCallbacks.forEach(callback => callback(this.currentEvacuation!));
       
       this.currentEvacuation = null;
