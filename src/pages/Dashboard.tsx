@@ -111,6 +111,9 @@ export default function Dashboard() {
   const [currentSensorIndex, setCurrentSensorIndex] = useState(0);
   const [liveData, setLiveData] = useState(initializeSensors());
   
+  // Force rebuild to clear cache
+  console.log('Dashboard loaded with live sensor data');
+  
   const sensorsPerPage = 4;
   const totalPages = Math.ceil(liveData.length / sensorsPerPage);
   
