@@ -1,70 +1,56 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Activity, Zap, Calendar, Users, TrendingUp, AlertTriangle, X, Bell } from "lucide-react";
 import SensorCard from "../components/SensorCard";
+import { databaseService, type SensorReading } from "@/services/DatabaseService";
 
-// Mock sensor data
-const mockSensors = [
-  {
-    id: "DISP-001",
-    name: "Displacement Sensor",
-    value: 2.45,
-    unit: "mm",
+// Sensor type definition (compatible with SensorCard)
+interface SensorType {
+  id: string;
+  name: string;
+  location: string;
+  value: number;
+  unit: string;
+  status: "safe" | "moderate" | "high";
+  trend: "up" | "down" | "stable";
+  threshold: { safe: number; moderate: number; high: number };
+  lastUpdated: string;
+  description: string;
+  logs: Array<{
+    id: string;
+    timestamp: string;
+    level: "info" | "warning" | "error";
+    message: string;
+  }>;
+}
+
+// Sensor mapping configuration (same as Sensors page)
+const sensorMappings = {
+  'RAIN-001': { field: 'Rainfall_mm' as keyof SensorReading, name: 'Current Rainfall', unit: 'mm', thresholds: { safe: 5, moderate: 15, high: 25 } },
+  'RAIN-002': { field: 'Rainfall_3Day' as keyof SensorReading, name: '3-Day Rainfall', unit: 'mm', thresholds: { safe: 20, moderate: 50, high: 100 } },
+  'RAIN-003': { field: 'Rainfall_7Day' as keyof SensorReading, name: '7-Day Rainfall', unit: 'mm', thresholds: { safe: 50, moderate: 100, high: 200 } },
+  'TEMP-001': { field: 'Temperature_C' as keyof SensorReading, name: 'Temperature', unit: '°C', thresholds: { safe: 40, moderate: 50, high: 60 } },
+  'STRN-001': { field: 'Soil_Strain' as keyof SensorReading, name: 'Soil Strain', unit: 'μɛ', thresholds: { safe: 100, moderate: 200, high: 300 } },
+  'PORE-001': { field: 'Pore_Water_Pressure_kPa' as keyof SensorReading, name: 'Pore Water Pressure', unit: 'kPa', thresholds: { safe: 100, moderate: 150, high: 200 } },
+};
+
+// Initialize sensors from mapping (same structure as Sensors page)
+const initializeSensors = (): SensorType[] => {
+  return Object.entries(sensorMappings).map(([id, config]) => ({
+    id,
+    name: config.name,
+    location: "Mine Site - Monitoring Station",
+    value: 0,
+    unit: config.unit,
     status: "safe" as const,
     trend: "stable" as const,
-    lastUpdated: "2 mins ago",
-    threshold: { safe: 5, moderate: 8, high: 12 }
-  },
-  {
-    id: "STRN-002", 
-    name: "Strain Gauge",
-    value: 156.7,
-    unit: "μɛ",
-    status: "moderate" as const,
-    trend: "up" as const,
-    lastUpdated: "1 min ago",
-    threshold: { safe: 100, moderate: 200, high: 300 }
-  },
-  {
-    id: "PORE-003",
-    name: "Pore Pressure",
-    value: 87.3,
-    unit: "kPa",
-    status: "safe" as const,
-    trend: "down" as const,
-    lastUpdated: "3 mins ago",
-    threshold: { safe: 100, moderate: 150, high: 200 }
-  },
-  {
-    id: "RAIN-004",
-    name: "Rainfall Monitor",
-    value: 0.0,
-    unit: "mm/h",
-    status: "safe" as const,
-    trend: "stable" as const,
-    lastUpdated: "1 min ago",
-    threshold: { safe: 5, moderate: 15, high: 25 }
-  },
-  {
-    id: "TEMP-005",
-    name: "Temperature Sensor",
-    value: 23.8,
-    unit: "°C",
-    status: "safe" as const,
-    trend: "stable" as const,
-    lastUpdated: "2 mins ago",
-    threshold: { safe: 40, moderate: 50, high: 60 }
-  },
-  {
-    id: "VIB-006",
-    name: "Vibration Monitor",
-    value: 12.4,
-    unit: "mm/s",
-    status: "high" as const,
-    trend: "up" as const,
-    lastUpdated: "30 secs ago",
-    threshold: { safe: 5, moderate: 10, high: 15 }
-  }
-];
+    threshold: config.thresholds,
+    lastUpdated: new Date().toLocaleString(),
+    description: `Real-time monitoring of ${config.name.toLowerCase()} from cloud database sensors.`,
+    logs: [
+      { id: `${id}-1`, timestamp: new Date().toLocaleString(), level: "info" as const, message: "Sensor initialized - waiting for data" }
+    ]
+  }));
+};
 
 const activeAlerts = [
   {
@@ -123,10 +109,10 @@ const timelineEvents = [
 
 export default function Dashboard() {
   const [currentSensorIndex, setCurrentSensorIndex] = useState(0);
-  const [liveData, setLiveData] = useState(mockSensors);
+  const [liveData, setLiveData] = useState(initializeSensors());
   
   const sensorsPerPage = 4;
-  const totalPages = Math.ceil(mockSensors.length / sensorsPerPage);
+  const totalPages = Math.ceil(liveData.length / sensorsPerPage);
   
   const getCurrentSensors = () => {
     const start = currentSensorIndex;
@@ -135,7 +121,7 @@ export default function Dashboard() {
   };
 
   const nextSensors = () => {
-    if (currentSensorIndex + sensorsPerPage < mockSensors.length) {
+    if (currentSensorIndex + sensorsPerPage < liveData.length) {
       setCurrentSensorIndex(currentSensorIndex + sensorsPerPage);
     }
   };
@@ -146,17 +132,58 @@ export default function Dashboard() {
     }
   };
 
-  // Simulate real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveData(prev => prev.map(sensor => ({
-        ...sensor,
-        value: sensor.value + (Math.random() - 0.5) * 0.1,
-        lastUpdated: "Just now"
-      })));
-    }, 5000);
+  // Update sensors from database data (same logic as Sensors page)
+  const updateSensorsFromData = (sensorData: SensorReading[]) => {
+    if (sensorData.length === 0) return;
 
-    return () => clearInterval(interval);
+    const latestReading = sensorData[sensorData.length - 1];
+    
+    setLiveData(prevSensors => 
+      prevSensors.map(sensor => {
+        const mapping = sensorMappings[sensor.id as keyof typeof sensorMappings];
+        if (!mapping) return sensor;
+
+        const newValue = Number(latestReading[mapping.field]) || 0;
+        
+        // Determine status based on thresholds
+        let newStatus: "safe" | "moderate" | "high" = "safe";
+        if (newValue >= sensor.threshold.high) {
+          newStatus = "high";
+        } else if (newValue >= sensor.threshold.moderate) {
+          newStatus = "moderate";
+        }
+        
+        // Determine trend (simplified - compare with previous value)
+        let newTrend: "up" | "down" | "stable" = "stable";
+        const diff = newValue - sensor.value;
+        if (diff > 0.1) newTrend = "up";
+        else if (diff < -0.1) newTrend = "down";
+        
+        return {
+          ...sensor,
+          value: parseFloat(newValue.toFixed(2)),
+          status: newStatus,
+          trend: newTrend,
+          lastUpdated: new Date().toLocaleString(),
+        };
+      })
+    );
+  };
+
+  // Setup database service (same as Sensors page)
+  useEffect(() => {
+    if (databaseService.isConfigured()) {
+      // Subscribe to real-time data
+      databaseService.subscribe(updateSensorsFromData);
+      
+      // Start real-time monitoring
+      databaseService.startRealTimeMonitoring(5000); // Every 5 seconds
+    }
+
+    return () => {
+      // Cleanup subscriptions
+      databaseService.unsubscribe(updateSensorsFromData);
+    };
   }, []);
 
   return (
@@ -333,7 +360,7 @@ export default function Dashboard() {
             </span>
             <button
               onClick={nextSensors}
-              disabled={currentSensorIndex + sensorsPerPage >= mockSensors.length}
+              disabled={currentSensorIndex + sensorsPerPage >= liveData.length}
               className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="h-5 w-5" />
