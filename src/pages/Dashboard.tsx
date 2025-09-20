@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Activity, Zap, Calendar, Users, TrendingUp, AlertTriangle, X, Bell } from "lucide-react";
 import SensorCard from "../components/SensorCard";
 import { databaseService, type SensorReading } from "@/services/DatabaseService";
+import { useToast } from "@/hooks/use-toast";
 
 // Sensor type definition (compatible with SensorCard)
 interface SensorType {
@@ -110,6 +111,7 @@ const timelineEvents = [
 export default function Dashboard() {
   const [currentSensorIndex, setCurrentSensorIndex] = useState(0);
   const [liveData, setLiveData] = useState(initializeSensors());
+  const { toast } = useToast();
   
   // Force rebuild to clear cache
   console.log('Dashboard loaded with live sensor data');
@@ -147,6 +149,11 @@ export default function Dashboard() {
         if (!mapping) return sensor;
 
         const newValue = Number(latestReading[mapping.field]) || 0;
+        const previousValue = sensor.value;
+        
+        // Calculate overall scale (max threshold as scale reference)
+        const overallScale = sensor.threshold.high * 1.5; // 50% above high threshold as max scale
+        const seventyPercentScale = overallScale * 0.7;
         
         // Determine status based on thresholds
         let newStatus: "safe" | "moderate" | "high" = "safe";
@@ -161,6 +168,25 @@ export default function Dashboard() {
         const diff = newValue - sensor.value;
         if (diff > 0.1) newTrend = "up";
         else if (diff < -0.1) newTrend = "down";
+        
+        // Alert notifications for threshold breaches
+        if (newValue !== previousValue) {
+          // Check for very high reading (above high threshold)
+          if (newValue >= sensor.threshold.high && previousValue < sensor.threshold.high) {
+            toast({
+              title: "🚨 Very High Sensor Reading",
+              description: `${sensor.name}: ${newValue} ${sensor.unit} (Critical threshold exceeded)`,
+              variant: "destructive",
+            });
+          }
+          // Check for moderately high reading (above 70% of overall scale)
+          else if (newValue >= seventyPercentScale && previousValue < seventyPercentScale) {
+            toast({
+              title: "⚠️ Moderately High Sensor Reading",
+              description: `${sensor.name}: ${newValue} ${sensor.unit} (70% of scale exceeded)`,
+            });
+          }
+        }
         
         return {
           ...sensor,
