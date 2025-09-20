@@ -62,6 +62,14 @@ export default function Sensors() {
   const [showConfig, setShowConfig] = useState(false);
   const [mlPrediction, setMlPrediction] = useState<MLPrediction | null>(null);
   const [isDataConnected, setIsDataConnected] = useState(false);
+  const [sensorAlerts, setSensorAlerts] = useState<Array<{
+    id: number;
+    type: string;
+    description: string;
+    sensorName: string;
+    time: string;
+    severity: "warning" | "critical";
+  }>>([]);
   const { toast } = useToast();
 
   // Update sensors from database data
@@ -105,6 +113,16 @@ export default function Sensors() {
               description: `${sensor.name}: ${newValue} ${sensor.unit} (Critical threshold exceeded)`,
               variant: "destructive",
             });
+            
+            // Add to sensor alerts
+            setSensorAlerts(prev => [{
+              id: Date.now(),
+              type: "Very High Reading",
+              description: `${newValue} ${sensor.unit} (Critical threshold exceeded)`,
+              sensorName: sensor.name,
+              time: "Just now",
+              severity: "critical" as const
+            }, ...prev.slice(0, 9)]); // Keep only 10 alerts
           }
           // Check for moderately high reading (above 70% of overall scale)
           else if (newValue >= seventyPercentScale && previousValue < seventyPercentScale) {
@@ -112,6 +130,16 @@ export default function Sensors() {
               title: "⚠️ Moderately High Sensor Reading",
               description: `${sensor.name}: ${newValue} ${sensor.unit} (70% of scale exceeded)`,
             });
+            
+            // Add to sensor alerts
+            setSensorAlerts(prev => [{
+              id: Date.now(),
+              type: "Moderately High Reading",
+              description: `${newValue} ${sensor.unit} (70% of scale exceeded)`,
+              sensorName: sensor.name,
+              time: "Just now",
+              severity: "warning" as const
+            }, ...prev.slice(0, 9)]); // Keep only 10 alerts
           }
         }
         
@@ -284,6 +312,46 @@ export default function Sensors() {
         {showConfig && (
           <div className="mb-8">
             <DatabaseConfig />
+          </div>
+        )}
+
+        {/* Sensor Alerts Section */}
+        {sensorAlerts.length > 0 && (
+          <div className="mb-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Recent Sensor Alerts
+                  <Badge variant="destructive" className="ml-auto">
+                    {sensorAlerts.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {sensorAlerts.map((alert) => (
+                    <div key={alert.id} className={`p-3 rounded-lg border transition-all ${
+                      alert.severity === "critical" ? "bg-destructive/10 border-destructive/30" :
+                      "bg-warning/10 border-warning/30"
+                    }`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium text-foreground">{alert.sensorName}</span>
+                            <Badge variant={alert.severity === "critical" ? "destructive" : "secondary"} className="text-xs">
+                              {alert.type}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground">{alert.description}</div>
+                          <div className="text-xs text-muted-foreground mt-1">{alert.time}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 

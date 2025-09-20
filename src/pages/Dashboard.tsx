@@ -53,7 +53,7 @@ const initializeSensors = (): SensorType[] => {
   }));
 };
 
-const activeAlerts = [
+const initialActiveAlerts = [
   {
     id: 1,
     type: "Vibration Anomaly",
@@ -80,28 +80,10 @@ const activeAlerts = [
     time: "Just now",
     severity: "warning",
     icon: "temperature"
-  },
-  {
-    id: 4,
-    type: "Sensor Offline",
-    description: "Automated monitoring system detection",
-    zone: "Zone A",
-    time: "1m ago",
-    severity: "info",
-    icon: "offline"
-  },
-  {
-    id: 5,
-    type: "Temperature Spike",
-    description: "Automated monitoring system detection",
-    zone: "Zone D",
-    time: "Just now",
-    severity: "warning",
-    icon: "temperature"
   }
 ];
 
-const timelineEvents = [
+const initialTimelineEvents = [
   { time: "14:30", event: "Vibration spike detected", status: "warning" },
   { time: "13:45", event: "System maintenance completed", status: "success" },
   { time: "12:20", event: "Strain threshold exceeded", status: "alert" },
@@ -111,6 +93,8 @@ const timelineEvents = [
 export default function Dashboard() {
   const [currentSensorIndex, setCurrentSensorIndex] = useState(0);
   const [liveData, setLiveData] = useState(initializeSensors());
+  const [activeAlerts, setActiveAlerts] = useState(initialActiveAlerts);
+  const [timelineEvents, setTimelineEvents] = useState(initialTimelineEvents);
   const { toast } = useToast();
   
   // Force rebuild to clear cache
@@ -171,20 +155,60 @@ export default function Dashboard() {
         
         // Alert notifications for threshold breaches
         if (newValue !== previousValue) {
+          const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          
           // Check for very high reading (above high threshold)
           if (newValue >= sensor.threshold.high && previousValue < sensor.threshold.high) {
+            // Toast notification
             toast({
               title: "🚨 Very High Sensor Reading",
               description: `${sensor.name}: ${newValue} ${sensor.unit} (Critical threshold exceeded)`,
               variant: "destructive",
             });
+            
+            // Add to active alerts
+            setActiveAlerts(prev => [{
+              id: Date.now(),
+              type: "Very High Sensor Reading",
+              description: `${sensor.name}: ${newValue} ${sensor.unit}`,
+              zone: sensor.location,
+              time: "Just now",
+              severity: "critical",
+              icon: "temperature"
+            }, ...prev.slice(0, 9)]); // Keep only 10 alerts
+            
+            // Add to timeline events
+            setTimelineEvents(prev => [{
+              time: currentTime,
+              event: `Very high ${sensor.name}: ${newValue} ${sensor.unit}`,
+              status: "alert"
+            }, ...prev.slice(0, 9)]); // Keep only 10 events
           }
           // Check for moderately high reading (above 70% of overall scale)
           else if (newValue >= seventyPercentScale && previousValue < seventyPercentScale) {
+            // Toast notification
             toast({
               title: "⚠️ Moderately High Sensor Reading",
               description: `${sensor.name}: ${newValue} ${sensor.unit} (70% of scale exceeded)`,
             });
+            
+            // Add to active alerts
+            setActiveAlerts(prev => [{
+              id: Date.now(),
+              type: "Moderately High Sensor Reading",
+              description: `${sensor.name}: ${newValue} ${sensor.unit}`,
+              zone: sensor.location,
+              time: "Just now",
+              severity: "warning",
+              icon: "temperature"
+            }, ...prev.slice(0, 9)]); // Keep only 10 alerts
+            
+            // Add to timeline events
+            setTimelineEvents(prev => [{
+              time: currentTime,
+              event: `Moderately high ${sensor.name}: ${newValue} ${sensor.unit}`,
+              status: "warning"
+            }, ...prev.slice(0, 9)]); // Keep only 10 events
           }
         }
         
@@ -329,7 +353,7 @@ export default function Dashboard() {
                 <h2 className="text-xl font-bold text-foreground">Active Alerts</h2>
               </div>
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-destructive/20 text-destructive">
-                10 New
+                {activeAlerts.length} New
               </span>
             </div>
             
