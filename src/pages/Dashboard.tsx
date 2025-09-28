@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Activity, Zap, Calendar, Users, TrendingUp, 
 import SensorCard from "../components/SensorCard";
 import { databaseService, type SensorReading } from "@/services/DatabaseService";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/contexts/SettingsContext";
 
 // Sensor type definition (compatible with SensorCard)
 interface SensorType {
@@ -26,31 +27,38 @@ interface SensorType {
 
 // Sensor mapping configuration (same as Sensors page)
 const sensorMappings = {
-  'RAIN-001': { field: 'Rainfall_mm' as keyof SensorReading, name: 'Current Rainfall', unit: 'mm', thresholds: { safe: 5, moderate: 15, high: 25 } },
-  'RAIN-002': { field: 'Rainfall_3Day' as keyof SensorReading, name: '3-Day Rainfall', unit: 'mm', thresholds: { safe: 20, moderate: 50, high: 100 } },
-  'RAIN-003': { field: 'Rainfall_7Day' as keyof SensorReading, name: '7-Day Rainfall', unit: 'mm', thresholds: { safe: 50, moderate: 100, high: 200 } },
-  'TEMP-001': { field: 'Temperature_C' as keyof SensorReading, name: 'Temperature', unit: '°C', thresholds: { safe: 40, moderate: 50, high: 60 } },
-  'STRN-001': { field: 'Soil_Strain' as keyof SensorReading, name: 'Soil Strain', unit: 'μɛ', thresholds: { safe: 100, moderate: 200, high: 300 } },
-  'PORE-001': { field: 'Pore_Water_Pressure_kPa' as keyof SensorReading, name: 'Pore Water Pressure', unit: 'kPa', thresholds: { safe: 100, moderate: 150, high: 200 } },
+  'RAIN-001': { field: 'Rainfall_mm' as keyof SensorReading, name: 'Current Rainfall', unit: 'mm', settingKey: 'rainfall' },
+  'RAIN-002': { field: 'Rainfall_3Day' as keyof SensorReading, name: '3-Day Rainfall', unit: 'mm', settingKey: 'rainfall' },
+  'RAIN-003': { field: 'Rainfall_7Day' as keyof SensorReading, name: '7-Day Rainfall', unit: 'mm', settingKey: 'rainfall' },
+  'TEMP-001': { field: 'Temperature_C' as keyof SensorReading, name: 'Temperature', unit: '°C', settingKey: 'temperature' },
+  'STRN-001': { field: 'Soil_Strain' as keyof SensorReading, name: 'Soil Strain', unit: 'μɛ', settingKey: 'strain' },
+  'PORE-001': { field: 'Pore_Water_Pressure_kPa' as keyof SensorReading, name: 'Pore Water Pressure', unit: 'kPa', settingKey: 'porePressure' },
 };
 
 // Initialize sensors from mapping (same structure as Sensors page)
-const initializeSensors = (): SensorType[] => {
-  return Object.entries(sensorMappings).map(([id, config]) => ({
-    id,
-    name: config.name,
-    location: "Mine Site - Monitoring Station",
-    value: 0,
-    unit: config.unit,
-    status: "safe" as const,
-    trend: "stable" as const,
-    threshold: config.thresholds,
-    lastUpdated: new Date().toLocaleString(),
-    description: `Real-time monitoring of ${config.name.toLowerCase()} from cloud database sensors.`,
-    logs: [
-      { id: `${id}-1`, timestamp: new Date().toLocaleString(), level: "info" as const, message: "Sensor initialized - waiting for data" }
-    ]
-  }));
+const initializeSensors = (thresholds: any): SensorType[] => {
+  return Object.entries(sensorMappings).map(([id, config]) => {
+    const settingThreshold = thresholds[config.settingKey];
+    return {
+      id,
+      name: config.name,
+      location: "Mine Site - Monitoring Station",
+      value: 0,
+      unit: config.unit,
+      status: "safe" as const,
+      trend: "stable" as const,
+      threshold: {
+        safe: settingThreshold.moderate * 0.6,
+        moderate: settingThreshold.moderate,
+        high: settingThreshold.high
+      },
+      lastUpdated: new Date().toLocaleString(),
+      description: `Real-time monitoring of ${config.name.toLowerCase()} from cloud database sensors.`,
+      logs: [
+        { id: `${id}-1`, timestamp: new Date().toLocaleString(), level: "info" as const, message: "Sensor initialized - waiting for data" }
+      ]
+    };
+  });
 };
 
 const initialActiveAlerts = [
@@ -91,8 +99,9 @@ const initialTimelineEvents = [
 ];
 
 export default function Dashboard() {
+  const { thresholds } = useSettings();
   const [currentSensorIndex, setCurrentSensorIndex] = useState(0);
-  const [liveData, setLiveData] = useState(initializeSensors());
+  const [liveData, setLiveData] = useState(initializeSensors(thresholds));
   const [activeAlerts, setActiveAlerts] = useState(initialActiveAlerts);
   const [timelineEvents, setTimelineEvents] = useState(initialTimelineEvents);
   const { toast } = useToast();
@@ -120,6 +129,26 @@ export default function Dashboard() {
       setCurrentSensorIndex(currentSensorIndex - sensorsPerPage);
     }
   };
+
+  // Update sensor thresholds when settings change
+  useEffect(() => {
+    setLiveData(prevSensors => 
+      prevSensors.map(sensor => {
+        const mapping = sensorMappings[sensor.id as keyof typeof sensorMappings];
+        if (!mapping) return sensor;
+        
+        const settingThreshold = thresholds[mapping.settingKey as keyof typeof thresholds];
+        return {
+          ...sensor,
+          threshold: {
+            safe: settingThreshold.moderate * 0.6,
+            moderate: settingThreshold.moderate,
+            high: settingThreshold.high
+          }
+        };
+      })
+    );
+  }, [thresholds]);
 
   // Update sensors from database data (same logic as Sensors page)
   const updateSensorsFromData = (sensorData: SensorReading[]) => {
