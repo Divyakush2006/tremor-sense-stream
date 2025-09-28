@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { Bell, Shield, Database, Monitor, Save, AlertTriangle } from "lucide-react";
+import { useSettings } from "@/contexts/SettingsContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
+  const { thresholds, updateThresholds } = useSettings();
+  const { toast } = useToast();
+  
   const [notifications, setNotifications] = useState({
     email: true,
     sms: false,
@@ -9,15 +14,6 @@ export default function Settings() {
     highRisk: true,
     moderateRisk: false,
     maintenance: true
-  });
-
-  const [thresholds, setThresholds] = useState({
-    displacement: { moderate: 8, high: 12 },
-    strain: { moderate: 200, high: 300 },
-    porePressure: { moderate: 150, high: 200 },
-    rainfall: { moderate: 15, high: 25 },
-    temperature: { moderate: 50, high: 60 },
-    vibration: { moderate: 10, high: 15 }
   });
 
   const [monitoring, setMonitoring] = useState({
@@ -28,9 +24,13 @@ export default function Settings() {
   });
 
   const handleSave = () => {
-    // Simulate saving settings
+    // Save settings to context and localStorage
     console.log("Settings saved:", { notifications, thresholds, monitoring });
-    // In a real app, this would make an API call
+    
+    toast({
+      title: "Settings Saved",
+      description: "Threshold settings have been updated and will apply to live sensor data.",
+    });
   };
 
   return (
@@ -138,10 +138,10 @@ export default function Settings() {
                     <input
                       type="number"
                       value={values.moderate}
-                      onChange={(e) => setThresholds(prev => ({
-                        ...prev,
-                        [sensor]: { ...prev[sensor as keyof typeof prev], moderate: Number(e.target.value) }
-                      }))}
+                      onChange={(e) => updateThresholds({
+                        ...thresholds,
+                        [sensor]: { ...thresholds[sensor as keyof typeof thresholds], moderate: Number(e.target.value) }
+                      })}
                       className="w-full px-3 py-2 bg-input border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
@@ -150,10 +150,10 @@ export default function Settings() {
                     <input
                       type="number"
                       value={values.high}
-                      onChange={(e) => setThresholds(prev => ({
-                        ...prev,
-                        [sensor]: { ...prev[sensor as keyof typeof prev], high: Number(e.target.value) }
-                      }))}
+                      onChange={(e) => updateThresholds({
+                        ...thresholds,
+                        [sensor]: { ...thresholds[sensor as keyof typeof thresholds], high: Number(e.target.value) }
+                      })}
                       className="w-full px-3 py-2 bg-input border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>

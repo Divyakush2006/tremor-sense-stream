@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, FileText, Clock, MapPin, Activity, Gauge, Settings } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle, FileText, Clock, MapPin, Activity, Gauge } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import SensorCard from "@/components/SensorCard";
-import DatabaseConfig from "@/components/DatabaseConfig";
 import { databaseService, type SensorReading } from "@/services/DatabaseService";
 import { mlModelService, type MLPrediction } from "@/services/MLModelService";
 import { autoEvacuationService } from "@/services/AutoEvacuationService";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/contexts/SettingsContext";
 
 interface SensorType {
   id: string;
@@ -31,35 +30,42 @@ interface SensorType {
 
 // Sensor mapping configuration
 const sensorMappings = {
-  'RAIN-001': { field: 'Rainfall_mm' as keyof SensorReading, name: 'Current Rainfall', unit: 'mm', thresholds: { safe: 5, moderate: 15, high: 25 } },
-  'RAIN-002': { field: 'Rainfall_3Day' as keyof SensorReading, name: '3-Day Rainfall', unit: 'mm', thresholds: { safe: 20, moderate: 50, high: 100 } },
-  'RAIN-003': { field: 'Rainfall_7Day' as keyof SensorReading, name: '7-Day Rainfall', unit: 'mm', thresholds: { safe: 50, moderate: 100, high: 200 } },
-  'TEMP-001': { field: 'Temperature_C' as keyof SensorReading, name: 'Temperature', unit: '°C', thresholds: { safe: 40, moderate: 50, high: 60 } },
-  'STRN-001': { field: 'Soil_Strain' as keyof SensorReading, name: 'Soil Strain', unit: 'μɛ', thresholds: { safe: 100, moderate: 200, high: 300 } },
-  'PORE-001': { field: 'Pore_Water_Pressure_kPa' as keyof SensorReading, name: 'Pore Water Pressure', unit: 'kPa', thresholds: { safe: 100, moderate: 150, high: 200 } },
+  'RAIN-001': { field: 'Rainfall_mm' as keyof SensorReading, name: 'Current Rainfall', unit: 'mm', settingKey: 'rainfall' },
+  'RAIN-002': { field: 'Rainfall_3Day' as keyof SensorReading, name: '3-Day Rainfall', unit: 'mm', settingKey: 'rainfall' },
+  'RAIN-003': { field: 'Rainfall_7Day' as keyof SensorReading, name: '7-Day Rainfall', unit: 'mm', settingKey: 'rainfall' },
+  'TEMP-001': { field: 'Temperature_C' as keyof SensorReading, name: 'Temperature', unit: '°C', settingKey: 'temperature' },
+  'STRN-001': { field: 'Soil_Strain' as keyof SensorReading, name: 'Soil Strain', unit: 'μɛ', settingKey: 'strain' },
+  'PORE-001': { field: 'Pore_Water_Pressure_kPa' as keyof SensorReading, name: 'Pore Water Pressure', unit: 'kPa', settingKey: 'porePressure' },
 };
 // Initialize sensors from mapping
-const initializeSensors = (): SensorType[] => {
-  return Object.entries(sensorMappings).map(([id, config]) => ({
-    id,
-    name: config.name,
-    location: "Mine Site - Monitoring Station",
-    value: 0,
-    unit: config.unit,
-    status: "safe" as const,
-    trend: "stable" as const,
-    threshold: config.thresholds,
-    lastUpdated: new Date().toLocaleString(),
-    description: `Real-time monitoring of ${config.name.toLowerCase()} from cloud database sensors.`,
-    logs: [
-      { id: `${id}-1`, timestamp: new Date().toLocaleString(), level: "info", message: "Sensor initialized - waiting for data" }
-    ]
-  }));
+const initializeSensors = (thresholds: any): SensorType[] => {
+  return Object.entries(sensorMappings).map(([id, config]) => {
+    const settingThreshold = thresholds[config.settingKey];
+    return {
+      id,
+      name: config.name,
+      location: "Mine Site - Monitoring Station",
+      value: 0,
+      unit: config.unit,
+      status: "safe" as const,
+      trend: "stable" as const,
+      threshold: {
+        safe: settingThreshold.moderate * 0.6, // 60% of moderate
+        moderate: settingThreshold.moderate,
+        high: settingThreshold.high
+      },
+      lastUpdated: new Date().toLocaleString(),
+      description: `Real-time monitoring of ${config.name.toLowerCase()} from cloud database sensors.`,
+      logs: [
+        { id: `${id}-1`, timestamp: new Date().toLocaleString(), level: "info", message: "Sensor initialized - waiting for data" }
+      ]
+    };
+  });
 };
 
 export default function Sensors() {
-  const [sensors, setSensors] = useState<SensorType[]>(initializeSensors());
-  const [showConfig, setShowConfig] = useState(false);
+  const { thresholds } = useSettings();
+  const [sensors, setSensors] = useState<SensorType[]>(initializeSensors(thresholds));
   const [mlPrediction, setMlPrediction] = useState<MLPrediction | null>(null);
   const [isDataConnected, setIsDataConnected] = useState(false);
   const [sensorAlerts, setSensorAlerts] = useState<Array<{
@@ -71,6 +77,26 @@ export default function Sensors() {
     severity: "warning" | "critical";
   }>>([]);
   const { toast } = useToast();
+
+  // Update sensor thresholds when settings change
+  useEffect(() => {
+    setSensors(prevSensors => 
+      prevSensors.map(sensor => {
+        const mapping = sensorMappings[sensor.id as keyof typeof sensorMappings];
+        if (!mapping) return sensor;
+        
+        const settingThreshold = thresholds[mapping.settingKey as keyof typeof thresholds];
+        return {
+          ...sensor,
+          threshold: {
+            safe: settingThreshold.moderate * 0.6,
+            moderate: settingThreshold.moderate,
+            high: settingThreshold.high
+          }
+        };
+      })
+    );
+  }, [thresholds]);
 
   // Update sensors from database data
   const updateSensorsFromData = (sensorData: SensorReading[]) => {
@@ -241,14 +267,6 @@ export default function Sensors() {
                 Real-time data from cloud database with ML-powered risk assessment
               </p>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowConfig(!showConfig)}
-              className="flex items-center gap-2"
-            >
-              <Settings className="h-4 w-4" />
-              Configure Services
-            </Button>
           </div>
 
           {/* Status Indicators */}
@@ -308,12 +326,6 @@ export default function Sensors() {
           )}
         </div>
 
-        {/* Configuration Panel */}
-        {showConfig && (
-          <div className="mb-8">
-            <DatabaseConfig />
-          </div>
-        )}
 
         {/* Sensor Alerts Section */}
         {sensorAlerts.length > 0 && (
