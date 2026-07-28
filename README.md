@@ -1,73 +1,101 @@
-# Welcome to your Lovable project
+<div align="center">
 
-## Project info
+# TremorSense
 
-**URL**: https://lovable.dev/projects/433c48d4-5292-43e2-932d-9fdb818ad5dc
+### Real-time tremor & vibration monitoring dashboard with ML-driven hazard inference and automated evacuation alerting
 
-## How can I edit this code?
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Portfolio](https://img.shields.io/badge/Portfolio-divyakush.com-C9A96E?style=flat&logo=googlechrome&logoColor=white)](https://www.divyakush.com)
 
-There are several ways of editing your application.
+</div>
 
-**Use Lovable**
+---
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/433c48d4-5292-43e2-932d-9fdb818ad5dc) and start prompting.
+## Overview
 
-Changes made via Lovable will be committed automatically to this repo.
+**TremorSense** is an operations dashboard for seismic and structural-vibration monitoring. It ingests live sensor telemetry, scores it against a hazard model, surfaces the current risk state at a glance, and — when a threshold is breached — raises audible alerts and drives an automated evacuation workflow.
 
-**Use your preferred IDE**
+The application is the **monitoring and control surface**: a responsive, real-time single-page dashboard that a control-room operator uses to watch a fleet of vibration sensors, review the event timeline, and manage alerting policy.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Key features
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Live monitoring dashboard** — real-time overview of every sensor with current readings, trend charts, and an at-a-glance system risk state.
+- **Sensor fleet management** — per-sensor status, thresholds, and health, presented as individual sensor cards.
+- **ML hazard inference** — telemetry is scored by a model service to classify the current hazard level rather than relying on a single fixed threshold.
+- **Automated evacuation workflow** — a dedicated service triggers the evacuation sequence when hazard conditions are met.
+- **Audible alerting** — threshold breaches raise on-screen and audio alerts so they are not missed in a control room.
+- **Manual alert control** — operators can raise an alert manually for drills or observed conditions.
+- **Event history** — a searchable timeline of past tremor events and alerts for review and audit.
+- **Data upload** — import recorded telemetry for replay and analysis.
+- **Configurable settings** — thresholds, database connection, and alerting behaviour are operator-configurable and persisted.
 
-Follow these steps:
+## Architecture
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+┌──────────────────────────────────────────────────────────┐
+│                     TremorSense (SPA)                      │
+├──────────────────────────────────────────────────────────┤
+│  Pages      Dashboard · Sensors · Event History ·          │
+│             Manual Alert · Upload · Settings               │
+├──────────────────────────────────────────────────────────┤
+│  Services   MLModelService        → hazard inference       │
+│             AutoEvacuationService → evacuation workflow    │
+│             DatabaseService       → telemetry persistence  │
+├──────────────────────────────────────────────────────────┤
+│  State      SettingsContext · React Query · hooks          │
+├──────────────────────────────────────────────────────────┤
+│  UI         shadcn/ui (Radix) · Tailwind · Recharts        │
+└──────────────────────────────────────────────────────────┘
 ```
 
-**Edit a file directly in GitHub**
+## Tech stack
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| Layer | Technology |
+|-------|------------|
+| Framework | React 18, TypeScript, Vite |
+| UI | shadcn/ui (Radix primitives), Tailwind CSS, Lucide icons |
+| Charts | Recharts |
+| Data / state | TanStack React Query, React Context |
+| Forms & validation | React Hook Form, Zod |
+| Routing | React Router |
+| Notifications | Sonner |
 
-**Use GitHub Codespaces**
+## Project structure
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```
+src/
+├── pages/         Dashboard, Sensors, EventHistory, ManualAlert, Upload, Settings
+├── services/      MLModelService, AutoEvacuationService, DatabaseService
+├── components/    SensorCard, Layout, DatabaseConfig, ui/ (shadcn)
+├── contexts/      SettingsContext
+├── hooks/         use-mobile, use-toast
+└── lib/           utilities
+```
 
-## What technologies are used for this project?
+## Getting started
 
-This project is built with:
+```bash
+# clone
+git clone https://github.com/Divyakush2006/tremor-sense-stream.git
+cd tremor-sense-stream
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# install
+npm install
 
-## How can I deploy this project?
+# run the dev server
+npm run dev
 
-Simply open [Lovable](https://lovable.dev/projects/433c48d4-5292-43e2-932d-9fdb818ad5dc) and click on Share -> Publish.
+# production build
+npm run build && npm run preview
+```
 
-## Can I connect a custom domain to my Lovable project?
+## Status & scope
 
-Yes, you can!
+This repository is the **frontend dashboard**. Sensor telemetry and the hazard-scoring / persistence services are wired through the service layer (`src/services`), which is the integration point for connecting live hardware and a production backend. It is designed to run against real sensor feeds while remaining fully demonstrable on simulated telemetry.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Author
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+**Divyakush Punjabi** — [www.divyakush.com](https://www.divyakush.com) · [GitHub](https://github.com/Divyakush2006) · [LinkedIn](https://linkedin.com/in/divyakush-punjabi)
