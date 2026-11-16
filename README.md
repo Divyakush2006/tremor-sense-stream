@@ -2,100 +2,166 @@
 
 # TremorSense
 
-### Real-time tremor & vibration monitoring dashboard with ML-driven hazard inference and automated evacuation alerting
+**Real-time slope-stability monitoring for mines: live geotechnical telemetry, ML risk inference and automated evacuation alerting.**
 
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Portfolio](https://img.shields.io/badge/Portfolio-divyakush.com-C9A96E?style=flat&logo=googlechrome&logoColor=white)](https://www.divyakush.com)
+[![License: Apache 2.0](https://img.shields.io/github/license/Divyakush2006/tremor-sense-stream?color=blue)](LICENSE)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)](https://vite.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+
+[Project write-up](https://www.divyakush.com/projects/rockfall-prediction) · [Report a bug](https://github.com/Divyakush2006/tremor-sense-stream/issues/new/choose) · [Request a feature](https://github.com/Divyakush2006/tremor-sense-stream/issues/new/choose)
+
+<img src="docs/images/dashboard.png" alt="TremorSense dashboard: safety score, sensor and alert counters, zone risk map, active alerts and live sensor readings" width="100%">
 
 </div>
 
----
-
 ## Overview
 
-**TremorSense** is an operations dashboard for seismic and structural-vibration monitoring. It ingests live sensor telemetry, scores it against a hazard model, surfaces the current risk state at a glance, and — when a threshold is breached — raises audible alerts and drives an automated evacuation workflow.
+TremorSense is the control-room console for a rockfall and landslide early-warning system. It watches a network of field sensors measuring rainfall, temperature, soil strain and pore-water pressure, sends the latest readings to a hazard model, and, when the model reports high risk with enough confidence, starts an evacuation workflow with audible alarms. The interface ships under the site brand **Aroham**.
 
-The application is the **monitoring and control surface**: a responsive, real-time single-page dashboard that a control-room operator uses to watch a fleet of vibration sensors, review the event timeline, and manage alerting policy.
+The dashboard is the monitoring and control surface. Telemetry storage and model inference are external services it connects to over HTTP (see [Integrations](#integrations)). When the model service is unreachable, a built-in rule-based fallback keeps scoring the readings, so monitoring never goes dark.
 
-## Key features
+## Features
 
-- **Live monitoring dashboard** — real-time overview of every sensor with current readings, trend charts, and an at-a-glance system risk state.
-- **Sensor fleet management** — per-sensor status, thresholds, and health, presented as individual sensor cards.
-- **ML hazard inference** — telemetry is scored by a model service to classify the current hazard level rather than relying on a single fixed threshold.
-- **Automated evacuation workflow** — a dedicated service triggers the evacuation sequence when hazard conditions are met.
-- **Audible alerting** — threshold breaches raise on-screen and audio alerts so they are not missed in a control room.
-- **Manual alert control** — operators can raise an alert manually for drills or observed conditions.
-- **Event history** — a searchable timeline of past tremor events and alerts for review and audit.
-- **Data upload** — import recorded telemetry for replay and analysis.
-- **Configurable settings** — thresholds, database connection, and alerting behaviour are operator-configurable and persisted.
+- **Live dashboard:** overall safety score, active sensors, open alerts, personnel on site, a zone risk map and live sensor cards.
+- **Sensor management:** per-sensor status and readings for every channel.
+- **ML risk inference:** each new reading is scored by the configured model API, which returns a risk flag, a confidence score and the contributing factors.
+- **Automated evacuation:** an evacuation is triggered when the model reports high risk with confidence ≥ 0.7, and stood down when risk clears.
+- **Manual emergency controls:** operators can sound the alarm for drills or observed conditions, with an audible buzzer.
+- **Event history:** a searchable timeline of past events and alerts.
+- **CSV upload:** import recorded telemetry for replay and analysis.
+- **Settings:** notification delivery, alert thresholds, monitoring configuration, and database and model connections.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    S[Field sensors] --> DB[(Telemetry API<br/>/sensor-data)]
+    DB -->|GET, polled| UI[TremorSense dashboard]
+    UI -->|POST latest reading| ML[Model API<br/>/predict]
+    ML -->|risk, confidence, factors| UI
+    UI -. API unavailable .-> FB[Rule-based fallback]
+    UI --> EV[AutoEvacuationService]
+    EV -->|risk and confidence ≥ 0.7| AL[Evacuation and audible alarm]
 ```
-┌──────────────────────────────────────────────────────────┐
-│                     TremorSense (SPA)                      │
-├──────────────────────────────────────────────────────────┤
-│  Pages      Dashboard · Sensors · Event History ·          │
-│             Manual Alert · Upload · Settings               │
-├──────────────────────────────────────────────────────────┤
-│  Services   MLModelService        → hazard inference       │
-│             AutoEvacuationService → evacuation workflow    │
-│             DatabaseService       → telemetry persistence  │
-├──────────────────────────────────────────────────────────┤
-│  State      SettingsContext · React Query · hooks          │
-├──────────────────────────────────────────────────────────┤
-│  UI         shadcn/ui (Radix) · Tailwind · Recharts        │
-└──────────────────────────────────────────────────────────┘
+
+| Layer | Contents |
+| --- | --- |
+| Pages | Dashboard, Sensors, Manual Alert, Event History, Data Upload, Settings |
+| Services | `DatabaseService` (telemetry), `MLModelService` (inference plus fallback), `AutoEvacuationService` (evacuation policy) |
+| State | `SettingsContext`, TanStack Query, React hooks |
+| UI | shadcn/ui on Radix primitives, Tailwind CSS, Recharts, Lucide icons |
+
+## Integrations
+
+Both endpoints are configured from **Settings → Database Management** at runtime; nothing is hard-coded.
+
+### Telemetry API
+
+`GET {databaseUrl}/sensor-data` with `Authorization: Bearer <apiKey>` returns an array of readings:
+
+```json
+[
+  {
+    "id": "r-001",
+    "timestamp": "2026-01-01T10:00:00Z",
+    "Rainfall_mm": 12.4,
+    "Rainfall_3Day": 38.0,
+    "Rainfall_7Day": 71.5,
+    "Temperature_C": 24.1,
+    "Soil_Strain": 0.0021,
+    "Pore_Water_Pressure_kPa": 41.8,
+    "sensor_location": "Zone A"
+  }
+]
 ```
+
+### Model API
+
+`POST {modelApiUrl}/predict`, with an optional bearer token, receives the latest reading:
+
+```json
+{
+  "features": {
+    "rainfall_mm": 12.4, "rainfall_3day": 38.0, "rainfall_7day": 71.5,
+    "temperature_c": 24.1, "soil_strain": 0.0021, "pore_water_pressure_kpa": 41.8
+  },
+  "timestamp": "2026-01-01T10:00:00Z",
+  "location": "Zone A"
+}
+```
+
+It should respond with `risk_level` (or `prediction: 1` for high risk), a `confidence` between 0 and 1, and an optional `contributing_factors` array.
 
 ## Tech stack
 
 | Layer | Technology |
-|-------|------------|
-| Framework | React 18, TypeScript, Vite |
+| --- | --- |
+| Framework | React 18, TypeScript, Vite 5 |
 | UI | shadcn/ui (Radix primitives), Tailwind CSS, Lucide icons |
 | Charts | Recharts |
-| Data / state | TanStack React Query, React Context |
-| Forms & validation | React Hook Form, Zod |
-| Routing | React Router |
+| Data and state | TanStack Query, React Context |
+| Forms and validation | React Hook Form, Zod |
+| Routing | React Router 6 |
 | Notifications | Sonner |
+
+## Getting started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org) 18 or later, with npm
+
+### Run locally
+
+```bash
+git clone https://github.com/Divyakush2006/tremor-sense-stream.git
+cd tremor-sense-stream
+npm install
+npm run dev
+```
+
+The app is served at <http://localhost:8080>. Connect your telemetry and model APIs under **Settings**.
+
+### Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the development server with hot reload |
+| `npm run build` | Create a production build in `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | Lint the project with ESLint |
 
 ## Project structure
 
 ```
 src/
-├── pages/         Dashboard, Sensors, EventHistory, ManualAlert, Upload, Settings
-├── services/      MLModelService, AutoEvacuationService, DatabaseService
-├── components/    SensorCard, Layout, DatabaseConfig, ui/ (shadcn)
-├── contexts/      SettingsContext
-├── hooks/         use-mobile, use-toast
-└── lib/           utilities
+├── pages/          # Dashboard, Sensors, ManualAlert, EventHistory, Upload, Settings
+├── services/       # DatabaseService, MLModelService, AutoEvacuationService
+├── components/     # Layout, SensorCard, DatabaseConfig, ui/ (shadcn)
+├── contexts/       # SettingsContext
+├── hooks/          # use-mobile, use-toast
+└── lib/            # Shared utilities
+models/             # Serialized model artefact (model.pkl) used by the inference service
+public/             # Static assets, including the alarm sound
 ```
 
-## Getting started
+## Deployment
 
-```bash
-# clone
-git clone https://github.com/Divyakush2006/tremor-sense-stream.git
-cd tremor-sense-stream
+`npm run build` outputs a static site to `dist/`. It can be hosted on any static host, for example Cloudflare Pages (build command `npm run build`, output directory `dist`). Configure the host to serve `index.html` for unknown paths, because routing is client-side.
 
-# install
-npm install
+## Contributing
 
-# run the dev server
-npm run dev
+Contributions are welcome. Please read the [contributing guide](https://github.com/Divyakush2006/.github/blob/main/CONTRIBUTING.md) before opening a pull request.
 
-# production build
-npm run build && npm run preview
-```
+## Security
 
-## Status & scope
+Please report vulnerabilities privately as described in the [security policy](https://github.com/Divyakush2006/.github/blob/main/SECURITY.md). Do not open a public issue.
 
-This repository is the **frontend dashboard**. Sensor telemetry and the hazard-scoring / persistence services are wired through the service layer (`src/services`), which is the integration point for connecting live hardware and a production backend. It is designed to run against real sensor feeds while remaining fully demonstrable on simulated telemetry.
+## License
+
+Released under the [Apache License 2.0](LICENSE).
 
 ## Author
 
-**Divyakush Punjabi** — [www.divyakush.com](https://www.divyakush.com) · [GitHub](https://github.com/Divyakush2006) · [LinkedIn](https://linkedin.com/in/divyakush-punjabi)
+**Divyakush Punjabi** · [www.divyakush.com](https://www.divyakush.com) · [GitHub](https://github.com/Divyakush2006) · [LinkedIn](https://linkedin.com/in/divyakush-punjabi)
